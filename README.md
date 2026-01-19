@@ -1,5 +1,5 @@
 # Display-Oled-128x64-Gr-fico-I2C-Serial-0.96-ssd1306
-![Uploading image.png…]()
+[![Uploading image.png…]()](https://github.com/Jefersonbarros/Display-Oled-128x64-Gr-fico-I2C-Serial-0.96/blob/main/2026-01-19%20at%2013.07.57%20(1).png?raw=true)
 
 <br>
 
