@@ -1,0 +1,291 @@
+#include <ESP8266WiFi.h>
+#include <WiFiUdp.h>
+#include <NTPClient.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// ================= OLED =================
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET -1
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// ================= PINOS =================
+#define BTN_PIN 12     // D6
+#define BAT_PIN A0     // Bateria (ADC)
+
+// ================= NTP =================
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -10800, 60000);
+
+// ================= ESTADOS =================
+enum State {
+  SCAN_WIFI,
+  SELECT_WIFI,
+  ENTER_PASSWORD,
+  CONNECT_WIFI,
+  CLOCK
+};
+State currentState = SCAN_WIFI;
+
+// ================= WIFI LIST =================
+String wifiList[10];
+int wifiCount = 0;
+int wifiIndex = 0;
+String selectedSSID = "";
+String wifiPassword = "";
+
+// ================= SENHA =================
+const char charset[] =
+"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+"abcdefghijklmnopqrstuvwxyz"
+"0123456789!@#$%&*";
+int charIndex = 0;
+
+// ================= TEMPO =================
+unsigned long lastMillis = 0;
+int h = 0, m = 0, s = 0;
+
+// ================= BOTAO CONTROLE =================
+bool btnLast = HIGH;
+unsigned long pressStart = 0;
+
+// ================= SETUP =================
+void setup() {
+  Wire.begin(4, 5); // SDA D2 | SCL D1
+  pinMode(BTN_PIN, INPUT_PULLUP);
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.setTextColor(SSD1306_WHITE);
+
+  scanWiFi();
+}
+
+// ================= LOOP =================
+void loop() {
+  handleButton();
+
+  if (currentState == CLOCK) {
+    updateClock();
+    drawClock();
+  }
+  else if (currentState == SELECT_WIFI) {
+    drawWiFiList();
+  }
+  else if (currentState == ENTER_PASSWORD) {
+    drawPasswordScreen();
+  }
+}
+
+// ================= BOTAO =================
+void handleButton() {
+  bool btn = digitalRead(BTN_PIN);
+
+  if (btn == LOW && btnLast == HIGH) {
+    pressStart = millis();
+  }
+
+  if (btn == HIGH && btnLast == LOW) {
+    unsigned long duration = millis() - pressStart;
+
+    if (currentState == SELECT_WIFI) {
+      if (duration < 1000) {
+        wifiIndex = (wifiIndex + 1) % wifiCount;
+      } else {
+        selectedSSID = wifiList[wifiIndex];
+        wifiPassword = "";
+        charIndex = 0;
+        currentState = ENTER_PASSWORD;
+      }
+    }
+
+    else if (currentState == ENTER_PASSWORD) {
+      if (duration < 1000) {
+        charIndex = (charIndex + 1) % strlen(charset);
+      }
+      else if (duration < 3000) {
+        wifiPassword += charset[charIndex];
+        charIndex = 0;
+      }
+      else {
+        currentState = CONNECT_WIFI;
+        connectWiFi();
+      }
+    }
+
+    else if (currentState == CLOCK) {
+      currentState = CONNECT_WIFI;
+      connectWiFi();
+    }
+  }
+
+  btnLast = btn;
+}
+
+// ================= WIFI =================
+void scanWiFi() {
+  display.clearDisplay();
+  display.setCursor(0, 25);
+  display.print("Procurando WiFi...");
+  display.display();
+
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(300);
+
+  wifiCount = WiFi.scanNetworks();
+  if (wifiCount > 10) wifiCount = 10;
+
+  for (int i = 0; i < wifiCount; i++) {
+    wifiList[i] = WiFi.SSID(i);
+  }
+
+  wifiIndex = 0;
+  currentState = SELECT_WIFI;
+}
+
+void connectWiFi() {
+  display.clearDisplay();
+  display.setCursor(0, 25);
+  display.print("Conectando...");
+  display.display();
+
+  WiFi.begin(selectedSSID.c_str(), wifiPassword.c_str());
+
+  unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+    delay(500);
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    timeClient.begin();
+    timeClient.update();
+
+    h = timeClient.getHours();
+    m = timeClient.getMinutes();
+    s = timeClient.getSeconds();
+
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+    currentState = CLOCK;
+  } else {
+    scanWiFi();
+  }
+
+  delay(1000);
+}
+
+// ================= TELAS WIFI =================
+void drawWiFiList() {
+  display.clearDisplay();
+  display.setTextSize(1);
+
+  display.setCursor(0, 0);
+  display.print("Selecione WiFi:");
+
+  display.setCursor(0, 25);
+  display.print("> ");
+  display.print(wifiList[wifiIndex]);
+
+  display.setCursor(0, 55);
+  display.print("Clique / Segure");
+
+  display.display();
+}
+
+void drawPasswordScreen() {
+  display.clearDisplay();
+  display.setTextSize(1);
+
+  display.setCursor(0, 0);
+  display.print("WiFi:");
+  display.println(selectedSSID);
+
+  display.setCursor(0, 20);
+  display.print("Senha:");
+
+  display.setCursor(0, 35);
+  display.print(wifiPassword);
+  display.print(charset[charIndex]);
+
+  display.setCursor(0, 55);
+  display.print("Curto/Medio/Longo");
+
+  display.display();
+}
+
+// ================= RELOGIO =================
+void updateClock() {
+  if (millis() - lastMillis >= 1000) {
+    lastMillis = millis();
+    s++;
+    if (s >= 60) { s = 0; m++; }
+    if (m >= 60) { m = 0; h++; }
+    if (h >= 24) h = 0;
+  }
+}
+
+// ================= BATERIA =================
+int getBatteryPercent(float &voltage) {
+  int raw = analogRead(BAT_PIN);
+
+  // NodeMCU + divisor 100k / 330k
+  voltage = raw * (4.2 / 1023.0);
+
+  int percent = map(voltage * 100, 300, 420, 0, 100);
+  return constrain(percent, 0, 100);
+}
+
+// ================= DESENHO RELOGIO =================
+void drawClock() {
+  display.clearDisplay();
+
+  // ===== BATERIA (MENOR + % À ESQUERDA) =====
+  float vBat;
+  int bat = getBatteryPercent(vBat);
+
+  display.setTextSize(1);
+  display.setCursor(78, 2);
+  display.print(bat);
+  display.print("%");
+
+  int bx = 102;
+  int by = 4;
+  int bw = 22;
+  int bh = 9;
+
+  display.drawRect(bx, by, bw, bh, SSD1306_WHITE);
+  display.drawRect(bx + bw, by + 2, 2, bh - 4, SSD1306_WHITE);
+
+  int level = map(bat, 0, 100, 0, bw - 2);
+  display.fillRect(bx + 1, by + 1, level, bh - 2, SSD1306_WHITE);
+
+  // ===== HORA =====
+  display.setTextSize(2);
+  display.setCursor(10, 24);
+
+  if (h < 10) display.print("0");
+  display.print(h);
+  display.print(":");
+
+  if (m < 10) display.print("0");
+  display.print(m);
+  display.print(":");
+
+  if (s < 10) display.print("0");
+  display.print(s);
+
+  // ===== DATA =====
+  time_t rawtime = timeClient.getEpochTime();
+  struct tm *ti = localtime(&rawtime);
+
+  display.setTextSize(1);
+  display.setCursor(32, 52);
+  display.printf("%02d/%02d/%04d",
+                 ti->tm_mday,
+                 ti->tm_mon + 1,
+                 ti->tm_year + 1900);
+
+  display.display();
+}
