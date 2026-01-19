@@ -3,6 +3,10 @@
   <img src="2026-01-19 at 13.07.57 (1).png" width="300">
 </p>
 
+<p align="left">
+  <img src="Image.png" width="300">
+</p>
+
 
 # 📟 ESP8266 NTP OLED Clock
 
