@@ -1,6 +1,9 @@
 # Display-Oled-128x64-Gr-fico-I2C-Serial-0.96-ssd1306
-<img src="2026-01-19 at 13.07.57 (1).png" width="300">
-<img src="Image.png" width="300">
+<p align="left">
+  <img src="2026-01-19 at 13.07.57 (1).png" width="300">
+  <img src="Image.png" width="300">
+</p>
+
 
 
 
