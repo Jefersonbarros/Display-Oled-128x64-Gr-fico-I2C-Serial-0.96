@@ -4,8 +4,6 @@
 </p>
 
 
-<br>
-
 # 📟 ESP8266 NTP OLED Clock
 
 Firmware para **ESP8266** que implementa um **relógio sincronizado via NTP**, com interface em **display OLED SSD1306**, **configuração de Wi-Fi usando apenas um botão** e **monitoramento do nível de bateria**.
