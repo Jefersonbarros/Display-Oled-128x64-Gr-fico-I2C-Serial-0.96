@@ -3,7 +3,7 @@
   <img src="2026-01-19 at 13.07.57 (1).png" width="300">
 </p>
 
-<p align="left">
+<p align="right">
   <img src="Image.png" width="300">
 </p>
 
